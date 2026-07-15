@@ -56,7 +56,7 @@
       <div class="product-section">
         <div class="label-block">产品标准和技术要求：</div>
         <div class="product-item product-item-nowrap">
-          {{ certificate.techonolgy }}   <!-- 直接显示整个字符串，不用 v-for -->
+          {{ certificate.techonolgy }}
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@
       <br>
       <span class="message2">查询过程中如果有任何问题，请拨打客服电话：xxx-xxxxxxxxx。</span>
       <br>
-      <span class="symbol">Copyright 2022
+      <span class="symbol">Copyright © 2022
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
 
