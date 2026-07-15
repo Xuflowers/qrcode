@@ -39,6 +39,18 @@
           {{ item }}
         </div>
       </div>
+
+      <!-- 产品标准和技术要求（动态渲染） -->
+      <div class="product-section">
+        <div class="label-block">产品标准和技术要求：</div>
+        <div
+            v-for="(item, index) in certificate.techonolgy"
+            :key="index"
+            class="product-item"
+        >
+          {{ item }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -57,7 +69,8 @@ const certificate = ref({
   clientName: '',
   producerNameAndAddr: '',
   manufacturerNameAndAddr: '',
-  products: []
+  products: [],
+  techonolgy:'',
 })
 
 // 模拟数据（完全参照你提供的图片内容）
@@ -67,7 +80,10 @@ const mockData = {
   clientName: '福州市飞毛腿科技有限公司',
   producerNameAndAddr: '福州市飞毛腿科技有限公司',
   manufacturerNameAndAddr: '福州市飞毛腿科技有限公司',
-  products: ['移动电源适配器', '移动电源适配器', '移动电源适配器']
+  products: ['移动电源适配器',
+    '移动电源适配器',
+    '移动电源适配器'],
+  techonolgy: "GB 31241-2022;GB 4943.1-2022;GB 17625.1-2022;GB/T9254.1-2021"
 }
 
 // 组件挂载时加载数据
