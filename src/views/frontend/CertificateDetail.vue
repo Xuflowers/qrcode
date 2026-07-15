@@ -71,6 +71,11 @@
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
 
+      <div class="qrcode-section">
+        <div class="label-block">扫码查看证书</div>
+        <canvas id="qrcode-canvas"></canvas>
+      </div>
+
     </div>
   </div>
 </template>
@@ -100,9 +105,9 @@ const mockData = {
   clientName: '福州市飞毛腿科技有限公司',
   producerNameAndAddr: '福州市飞毛腿科技有限公司',
   manufacturerNameAndAddr: '福州市飞毛腿科技有限公司',
-  products: ['示例文本',
-    '示例文本',
-    '示例文本'],
+  products: ['名称/系列',
+    '规格',
+    '型号'],
   techonolgy: ['GB 31241-2022', 'GB 4943.1-2022', 'GB 17625.1-2022', 'GB/T9254.1-2021']
 }
 
@@ -202,6 +207,5 @@ onMounted(() => {
 .bottom{
   padding: 12px;
   color: #666666;
-
 }
 </style>
