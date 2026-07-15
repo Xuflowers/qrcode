@@ -1,4 +1,4 @@
-<template>
+<template xmlns:router-link="http://www.w3.org/1999/html">
   <div class="certificate-container">
     <!-- 顶部标题栏 -->
     <div class="header">
@@ -40,17 +40,37 @@
         </div>
       </div>
 
-      <!-- 产品标准和技术要求（动态渲染） -->
+      <!-- 产品标准和技术要求（逐行显示） -->
+<!--      <div class="product-section">-->
+<!--        <div class="label-block">产品标准和技术要求：</div>-->
+<!--        <div-->
+<!--            v-for="(item, index) in certificate.techonolgy"-->
+<!--            :key="index"-->
+<!--            class="product-item"-->
+<!--        >-->
+<!--          {{ item }}-->
+<!--        </div>-->
+<!--      </div>-->
+
+      <!-- 产品标准和技术要求（合并显示） -->
       <div class="product-section">
         <div class="label-block">产品标准和技术要求：</div>
-        <div
-            v-for="(item, index) in certificate.techonolgy"
-            :key="index"
-            class="product-item"
-        >
-          {{ item }}
+        <div class="product-item product-item-nowrap">
+          {{ certificate.techonolgy }}   <!-- 直接显示整个字符串，不用 v-for -->
         </div>
       </div>
+    </div>
+
+    <!-- 底部文字 -->
+    <div class="bottom">
+      <span class="message1">查询证书详细信息可登录认监委网站www.cnca.gov.cn或中国质量认证中心网站www.cqc.com.cn查询。</span>
+      <br>
+      <span class="message2">查询过程中如果有任何问题，请拨打客服电话：xxx-xxxxxxxxx。</span>
+      <br>
+      <span class="symbol">Copyright 2022
+        <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
+      </span>
+
     </div>
   </div>
 </template>
@@ -80,9 +100,9 @@ const mockData = {
   clientName: '福州市飞毛腿科技有限公司',
   producerNameAndAddr: '福州市飞毛腿科技有限公司',
   manufacturerNameAndAddr: '福州市飞毛腿科技有限公司',
-  products: ['移动电源适配器',
-    '移动电源适配器',
-    '移动电源适配器'],
+  products: ['示例文本',
+    '示例文本',
+    '示例文本'],
   techonolgy: ['GB 31241-2022', 'GB 4943.1-2022', 'GB 17625.1-2022', 'GB/T9254.1-2021']
 }
 
@@ -178,5 +198,10 @@ onMounted(() => {
   font-size: 14px;
   color: #333333;
   border-left: 3px solid #409eff;
+}
+.bottom{
+  padding: 12px;
+  color: #666666;
+
 }
 </style>
