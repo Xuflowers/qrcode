@@ -20,6 +20,7 @@
         选择文件
       </button>
       <span v-if="fileName" class="file-name">{{ fileName }}</span>
+      <span v-else-if="hasStoredData" class="file-name">📂 已加载上次导入的数据</span>
     </div>
 
     <!-- 加载状态 -->
@@ -28,11 +29,25 @@
 
     <!-- 解析结果 -->
     <div v-if="tableData.length > 0" class="result">
-      <h3>解析结果（共 {{ tableData.length }} 条）</h3>
+      <div class="result-header">
+        <h3>解析结果（共 {{ tableData.length }} 条）</h3>
+        <div class="action-buttons">
+          <button
+              class="export-all-btn"
+              @click="batchExportQRCode"
+              :disabled="selectedCount === 0"
+          >
+            导出选中的二维码（{{ selectedCount }} 个）
+          </button>
+        </div>
+      </div>
       <div class="table-wrapper">
         <table>
           <thead>
           <tr>
+            <th style="width: 40px;">
+              <input type="checkbox" @change="toggleAll" :checked="isAllSelected" />
+            </th>
             <th>证书编号</th>
             <th>状态</th>
             <th>认证委托人名称</th>
@@ -46,6 +61,9 @@
           </thead>
           <tbody>
           <tr v-for="(row, index) in tableData" :key="index">
+            <td>
+              <input type="checkbox" v-model="selectedRows[index]" />
+            </td>
             <td>{{ row.certNo }}</td>
             <td>
                 <span :class="row.status === '有效' ? 'valid' : 'invalid'">
@@ -57,14 +75,12 @@
             <td>{{ row.manufacturerNameAndAddr }}</td>
             <td>{{ row.products.join('; ') }}</td>
             <td>{{ row.techonolgy.join('; ') }}</td>
-            <!-- 二维码列 -->
             <td>
               <div v-if="row.qrcodeDataURL" class="qrcode-cell">
                 <img :src="row.qrcodeDataURL" alt="二维码" width="80" height="80" />
               </div>
-              <div v-else class="qrcode-loading">生成中...</div>
+              <div v-else class="qrcode-loading">二维码缺失</div>
             </td>
-            <!-- 操作列 -->
             <td>
               <button class="detail-btn" @click="viewDetail(row.certNo)">
                 查看详情
@@ -86,10 +102,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { parseExcelToJson, mapExcelRowsToCertificates } from '@/utils/excel'
 import QRCode from 'qrcode'
+import JSZip from 'jszip'
 
 const router = useRouter()
 
@@ -98,6 +115,88 @@ const fileName = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 const tableData = ref([])
+const hasStoredData = ref(false)
+
+// 选中状态：用对象存储每个索引的选中状态，默认全选
+const selectedRows = ref({})
+
+// 计算选中数量
+const selectedCount = computed(() => {
+  return Object.values(selectedRows.value).filter(Boolean).length
+})
+
+// 判断是否全选
+const isAllSelected = computed(() => {
+  if (tableData.value.length === 0) return false
+  return selectedCount.value === tableData.value.length
+})
+
+// 全选/取消全选
+const toggleAll = (event) => {
+  const checked = event.target.checked
+  tableData.value.forEach((_, index) => {
+    selectedRows.value[index] = checked
+  })
+}
+
+// 生成二维码 dataURL（仅用于首次生成）
+const generateQRCodeDataURL = (certNo) => {
+  const baseUrl = window.location.origin + window.location.pathname
+  const url = `${baseUrl}#/certificate/${certNo}`
+  return QRCode.toDataURL(url, { width: 100, margin: 1 })
+}
+
+// 保存数据到 sessionStorage（持久化，包含二维码）
+const persistData = (dataArray) => {
+  const map = {}
+  dataArray.forEach(item => {
+    const key = item.certNo?.toString().trim()
+    if (key) {
+      const cleaned = {
+        certNo: key,
+        status: item.status?.trim() || '',
+        clientName: item.clientName?.trim() || '',
+        producerNameAndAddr: item.producerNameAndAddr?.trim() || '',
+        manufacturerNameAndAddr: item.manufacturerNameAndAddr?.trim() || '',
+        products: Array.isArray(item.products) ? item.products.map(s => s.trim()) : [],
+        techonolgy: Array.isArray(item.techonolgy) ? item.techonolgy.map(s => s.trim()) : []
+      }
+      map[key] = cleaned
+    }
+  })
+  sessionStorage.setItem('certificateData', JSON.stringify(map))
+
+  const listWithQR = dataArray.map(item => ({
+    ...item,
+    qrcodeDataURL: item.qrcodeDataURL || null
+  }))
+  sessionStorage.setItem('certificateList', JSON.stringify(listWithQR))
+}
+
+// 从 sessionStorage 恢复数据
+const restoreData = () => {
+  const storedList = sessionStorage.getItem('certificateList')
+  if (storedList) {
+    try {
+      const list = JSON.parse(storedList)
+      if (list.length > 0) {
+        tableData.value = list
+        hasStoredData.value = true
+        fileName.value = ''
+        // 默认全选
+        selectedRows.value = list.reduce((acc, _, idx) => {
+          acc[idx] = true
+          return acc
+        }, {})
+        console.log('✅ 已从 sessionStorage 恢复数据（含二维码），条数:', list.length)
+        return true
+      }
+    } catch (e) {
+      console.warn('恢复数据失败:', e)
+    }
+  }
+  return false
+}
 
 // 处理文件选择
 const handleFileChange = (e) => {
@@ -112,16 +211,7 @@ const handleDrop = (e) => {
   if (file) parseAndMapExcel(file)
 }
 
-// 生成二维码 dataURL
-const generateQRCodeDataURL = (certNo) => {
-  // 二维码内容：当前域名 + 证书详情页路由（带 hash）
-  const baseUrl = window.location.origin + window.location.pathname
-  const url = `${baseUrl}#/certificate/${certNo}`
-  // 返回 Promise，生成 100x100 的二维码
-  return QRCode.toDataURL(url, { width: 100, margin: 1 })
-}
-
-// 核心解析并存储到 sessionStorage
+// 核心解析并存储
 const parseAndMapExcel = async (file) => {
   const validTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -135,15 +225,18 @@ const parseAndMapExcel = async (file) => {
   loading.value = true
   errorMsg.value = ''
   fileName.value = file.name
+  hasStoredData.value = false
 
   const reader = new FileReader()
   reader.onload = async (e) => {
     try {
       const data = e.target.result
       const rawRows = parseExcelToJson(data)
-      const mapped = mapExcelRowsToCertificates(rawRows)
+      console.log('📋 原始 Excel 数据（前3行）:', rawRows.slice(0, 3))
 
-      // 为每一项生成二维码 dataURL（并发处理）
+      const mapped = mapExcelRowsToCertificates(rawRows)
+      console.log('📋 映射后数据（前3条）:', mapped.slice(0, 3))
+
       const promises = mapped.map(item =>
           generateQRCodeDataURL(item.certNo)
               .then(dataURL => {
@@ -156,16 +249,16 @@ const parseAndMapExcel = async (file) => {
                 return item
               })
       )
-      const result = await Promise.all(promises)
-      tableData.value = result
+      const withQR = await Promise.all(promises)
+      tableData.value = withQR
 
-      // 存入 sessionStorage，供详情页使用
-      const map = {}
-      result.forEach(item => {
-        if (item.certNo) map[item.certNo] = item
-      })
-      sessionStorage.setItem('certificateData', JSON.stringify(map))
+      // 默认全选
+      selectedRows.value = withQR.reduce((acc, _, idx) => {
+        acc[idx] = true
+        return acc
+      }, {})
 
+      persistData(withQR)
       loading.value = false
     } catch (err) {
       errorMsg.value = '解析失败：' + err.message
@@ -181,9 +274,10 @@ const parseAndMapExcel = async (file) => {
 
 // 跳转到详情页
 const viewDetail = (certNo) => {
-  if (certNo) {
+  const trimmed = certNo?.toString().trim()
+  if (trimmed) {
     router.push({
-      path: `/certificate/${certNo}`,
+      path: `/certificate/${trimmed}`,
       query: { from: 'back' }
     })
   } else {
@@ -199,10 +293,59 @@ const downloadQRCode = (row) => {
   link.href = row.qrcodeDataURL
   link.click()
 }
+
+// 批量导出选中的二维码
+const batchExportQRCode = async () => {
+  // 获取选中的行
+  const selectedItems = tableData.value.filter((_, index) => selectedRows.value[index])
+  const validItems = selectedItems.filter(item => item.qrcodeDataURL)
+
+  if (validItems.length === 0) {
+    alert('所选数据中没有可导出的二维码')
+    return
+  }
+
+  if (!confirm(`即将导出 ${validItems.length} 个二维码，是否继续？`)) return
+
+  try {
+    const zip = new JSZip()
+    const folder = zip.folder('二维码')
+
+    validItems.forEach((item) => {
+      const base64Data = item.qrcodeDataURL.split(',')[1]
+      const blob = new Blob([atob(base64Data)], { type: 'image/png' })
+      const fileName = `${item.certNo}-二维码.png`
+      folder.file(fileName, blob)
+    })
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(zipBlob)
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')
+    link.download = `二维码_${timestamp}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
+  } catch (err) {
+    console.error('批量导出失败:', err)
+    alert('导出失败，请查看控制台错误信息')
+  }
+}
+
+// 组件挂载时恢复数据
+onMounted(() => {
+  const restored = restoreData()
+  if (restored) {
+    console.log('📂 页面加载时自动恢复了上次导入的数据（含二维码）')
+  } else {
+    console.log('📭 无历史数据，等待用户导入')
+  }
+})
 </script>
 
 <style scoped>
-/* 原有样式保持不变 */
+/* 原有样式保持不变，新增复选框列宽度 */
 .import-container {
   max-width: 1200px;
   margin: 20px auto;
@@ -256,6 +399,35 @@ h2 {
 .result {
   margin-top: 25px;
 }
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.result-header h3 {
+  margin: 0;
+}
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+.export-all-btn {
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.export-all-btn:hover:not(:disabled) {
+  background: #fb8c00;
+}
+.export-all-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
 .table-wrapper {
   overflow-x: auto;
 }
@@ -270,6 +442,10 @@ td {
   border-bottom: 1px solid #eee;
   text-align: left;
   vertical-align: middle;
+}
+th:first-child,
+td:first-child {
+  text-align: center;
 }
 th {
   background: #f5f7fa;

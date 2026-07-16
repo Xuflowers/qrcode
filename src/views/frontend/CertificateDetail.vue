@@ -61,12 +61,6 @@
       <span class="symbol">Copyright © {{ currentYear }}
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
-
-      <!-- 👇 新增二维码区域 -->
-      <div class="qrcode-section">
-        <div class="label-block">扫码查看证书</div>
-        <canvas id="qrcode-canvas" width="150" height="150"></canvas>
-      </div>
     </div>
   </div>
 </template>
@@ -121,7 +115,7 @@ const generateQRCode = () => {
   nextTick(() => {
     const canvas = document.getElementById('qrcode-canvas')
     if (canvas) {
-      const certId = route.params.id
+      const certId = route.params.id?.toString().trim()
       const baseUrl = window.location.origin + window.location.pathname
       const url = `${baseUrl}#/certificate/${certId}`
       QRCode.toCanvas(canvas, url, { width: 150, margin: 1 }, (error) => {
@@ -139,7 +133,8 @@ const generateQRCode = () => {
 
 // 组件挂载
 onMounted(() => {
-  const id = route.params.id
+  const rawId = route.params.id
+  const id = rawId?.toString().trim()
   console.log('🔍 当前证书 ID:', id)
 
   // 1. 尝试从 sessionStorage 获取导入的数据
@@ -158,10 +153,14 @@ onMounted(() => {
         }
         found = true
         console.log('✅ 使用导入数据，合并后:', certificate.value)
+      } else {
+        console.warn(`⚠️ map 中不存在 key "${id}"，可用 keys:`, Object.keys(map))
       }
     } catch (e) {
       console.warn('解析 sessionStorage 数据失败', e)
     }
+  } else {
+    console.warn('sessionStorage 中没有 certificateData')
   }
 
   // 2. 如果未找到，使用 mock 数据，但将 certNo 设置为当前 id，保证显示一致
@@ -302,21 +301,4 @@ onMounted(() => {
   text-decoration: underline;
 }
 
-/* 👇 新增二维码样式 */
-.qrcode-section {
-  margin-top: 20px;
-  text-align: center;
-}
-.qrcode-section .label-block {
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #333;
-}
-#qrcode-canvas {
-  display: inline-block;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  background-color: #ffffff;
-  padding: 4px;
-}
 </style>
