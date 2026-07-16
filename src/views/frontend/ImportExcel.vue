@@ -1,6 +1,6 @@
 <template>
   <div class="import-container">
-    <h2>导入证书数据（Excel）</h2>
+    <h2>📄 导入证书数据（Excel）</h2>
 
     <!-- 上传区域 -->
     <div
@@ -37,7 +37,7 @@
               @click="batchExportQRCode"
               :disabled="selectedCount === 0"
           >
-            导出选中的二维码（{{ selectedCount }} 个）
+            ⬇️ 导出选中的二维码（{{ selectedCount }} 个）
           </button>
         </div>
       </div>
@@ -117,21 +117,18 @@ const errorMsg = ref('')
 const tableData = ref([])
 const hasStoredData = ref(false)
 
-// 选中状态：用对象存储每个索引的选中状态，默认全选
+// 选中状态
 const selectedRows = ref({})
 
-// 计算选中数量
 const selectedCount = computed(() => {
   return Object.values(selectedRows.value).filter(Boolean).length
 })
 
-// 判断是否全选
 const isAllSelected = computed(() => {
   if (tableData.value.length === 0) return false
   return selectedCount.value === tableData.value.length
 })
 
-// 全选/取消全选
 const toggleAll = (event) => {
   const checked = event.target.checked
   tableData.value.forEach((_, index) => {
@@ -139,14 +136,14 @@ const toggleAll = (event) => {
   })
 }
 
-// 生成二维码 dataURL（仅用于首次生成）
+// 生成二维码 dataURL
 const generateQRCodeDataURL = (certNo) => {
   const baseUrl = window.location.origin + window.location.pathname
   const url = `${baseUrl}#/certificate/${certNo}`
   return QRCode.toDataURL(url, { width: 100, margin: 1 })
 }
 
-// 保存数据到 sessionStorage（持久化，包含二维码）
+// 保存数据
 const persistData = (dataArray) => {
   const map = {}
   dataArray.forEach(item => {
@@ -173,7 +170,7 @@ const persistData = (dataArray) => {
   sessionStorage.setItem('certificateList', JSON.stringify(listWithQR))
 }
 
-// 从 sessionStorage 恢复数据
+// 恢复数据
 const restoreData = () => {
   const storedList = sessionStorage.getItem('certificateList')
   if (storedList) {
@@ -183,7 +180,6 @@ const restoreData = () => {
         tableData.value = list
         hasStoredData.value = true
         fileName.value = ''
-        // 默认全选
         selectedRows.value = list.reduce((acc, _, idx) => {
           acc[idx] = true
           return acc
@@ -198,20 +194,19 @@ const restoreData = () => {
   return false
 }
 
-// 处理文件选择
+// 文件处理
 const handleFileChange = (e) => {
   const file = e.target.files[0]
   if (file) parseAndMapExcel(file)
   e.target.value = ''
 }
 
-// 处理拖拽
 const handleDrop = (e) => {
   const file = e.dataTransfer.files[0]
   if (file) parseAndMapExcel(file)
 }
 
-// 核心解析并存储
+// 解析 Excel
 const parseAndMapExcel = async (file) => {
   const validTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -252,7 +247,6 @@ const parseAndMapExcel = async (file) => {
       const withQR = await Promise.all(promises)
       tableData.value = withQR
 
-      // 默认全选
       selectedRows.value = withQR.reduce((acc, _, idx) => {
         acc[idx] = true
         return acc
@@ -272,7 +266,7 @@ const parseAndMapExcel = async (file) => {
   reader.readAsArrayBuffer(file)
 }
 
-// 跳转到详情页
+// 跳转详情
 const viewDetail = (certNo) => {
   const trimmed = certNo?.toString().trim()
   if (trimmed) {
@@ -285,7 +279,7 @@ const viewDetail = (certNo) => {
   }
 }
 
-// 下载单个二维码
+// 单个下载
 const downloadQRCode = (row) => {
   if (!row.qrcodeDataURL) return
   const link = document.createElement('a')
@@ -294,9 +288,8 @@ const downloadQRCode = (row) => {
   link.click()
 }
 
-// 批量导出选中的二维码
+// ✅ 修复：批量导出（使用 fetch 获取 blob）
 const batchExportQRCode = async () => {
-  // 获取选中的行
   const selectedItems = tableData.value.filter((_, index) => selectedRows.value[index])
   const validItems = selectedItems.filter(item => item.qrcodeDataURL)
 
@@ -311,12 +304,13 @@ const batchExportQRCode = async () => {
     const zip = new JSZip()
     const folder = zip.folder('二维码')
 
-    validItems.forEach((item) => {
-      const base64Data = item.qrcodeDataURL.split(',')[1]
-      const blob = new Blob([atob(base64Data)], { type: 'image/png' })
+    // 使用 fetch 将 dataURL 转为 Blob，避免手动解码问题
+    for (const item of validItems) {
+      const response = await fetch(item.qrcodeDataURL)
+      const blob = await response.blob()
       const fileName = `${item.certNo}-二维码.png`
       folder.file(fileName, blob)
-    })
+    }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' })
     const link = document.createElement('a')
@@ -333,7 +327,7 @@ const batchExportQRCode = async () => {
   }
 }
 
-// 组件挂载时恢复数据
+// 挂载
 onMounted(() => {
   const restored = restoreData()
   if (restored) {
