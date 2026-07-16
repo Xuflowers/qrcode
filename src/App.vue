@@ -1,6 +1,7 @@
 <template>
   <!-- 路由占位，所有页面都通过 router-view 渲染 -->
   <router-view />
+
 </template>
 
 <script setup>

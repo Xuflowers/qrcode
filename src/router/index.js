@@ -1,21 +1,27 @@
-import { createRouter, createWebHashHistory } from 'vue-router'   // ← 改用 Hash 模式
+import { createRouter, createWebHashHistory } from 'vue-router'
 import CertificateDetail from '../views/frontend/CertificateDetail.vue'
+import ImportExcel from '../views/frontend/ImportExcel.vue'
 
 const routes = [
     {
         path: '/',
-        redirect: '/certificate/123'   // 根路径自动跳转示例
+        redirect: '/import'   // 或 '/certificate/123'
     },
     {
         path: '/certificate/:id',
         name: 'Certificate',
         component: CertificateDetail,
         props: true
+    },
+    {
+        path: '/import',
+        name: 'ImportExcel',
+        component: ImportExcel
     }
 ]
 
 const router = createRouter({
-    history: createWebHashHistory(),   // ← 使用 Hash 模式，避免 GitHub Pages 刷新 404
+    history: createWebHashHistory(),
     routes
 })
 

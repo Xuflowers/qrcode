@@ -1,4 +1,4 @@
-<template xmlns:router-link="http://www.w3.org/1999/html">
+<template>
   <div class="certificate-container">
     <!-- 顶部标题栏 -->
     <div class="header">
@@ -13,7 +13,7 @@
       </div>
       <div class="info-row">
         <span class="label">状态：</span>
-        <span class="value status">{{ certificate.status }}</span>
+        <span class="value" :class="statusClass">{{ certificate.status }}</span>
       </div>
       <div class="info-row">
         <span class="label">认证委托人名称：</span>
@@ -28,7 +28,7 @@
         <span class="value">{{ certificate.manufacturerNameAndAddr }}</span>
       </div>
 
-      <!-- 产品型号列表（动态渲染） -->
+      <!-- 产品型号列表 -->
       <div class="product-section">
         <div class="label-block">产品名称和系列、规格、型号：</div>
         <div
@@ -40,54 +40,45 @@
         </div>
       </div>
 
-      <!-- 产品标准和技术要求（逐行显示） -->
-<!--      <div class="product-section">-->
-<!--        <div class="label-block">产品标准和技术要求：</div>-->
-<!--        <div-->
-<!--            v-for="(item, index) in certificate.techonolgy"-->
-<!--            :key="index"-->
-<!--            class="product-item"-->
-<!--        >-->
-<!--          {{ item }}-->
-<!--        </div>-->
-<!--      </div>-->
-
       <!-- 产品标准和技术要求（合并显示） -->
       <div class="product-section">
         <div class="label-block">产品标准和技术要求：</div>
         <div class="product-item product-item-nowrap">
-          {{ certificate.techonolgy }}
+          {{ certificate.techonolgy.join('；') }}
         </div>
       </div>
     </div>
 
-    <!-- 底部文字 -->
+    <!-- 底部文字 + 二维码 -->
     <div class="bottom">
       <span class="message1">查询证书详细信息可登录认监委网站www.cnca.gov.cn或中国质量认证中心网站www.cqc.com.cn查询。</span>
       <br>
       <span class="message2">查询过程中如果有任何问题，请拨打客服电话：xxx-xxxxxxxxx。</span>
       <br>
-      <span class="symbol">Copyright © 2022
+      <span class="symbol">Copyright © {{ currentYear }}
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
 
+      <!-- 二维码区域 -->
       <div class="qrcode-section">
         <div class="label-block">扫码查看证书</div>
-        <canvas id="qrcode-canvas"></canvas>
+        <canvas id="qrcode-canvas" width="150" height="150"></canvas>
       </div>
-
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
+import QRCode from 'qrcode'
 
-// 获取路由参数
 const route = useRoute()
 
-// 定义响应式数据
+// 当前年份（动态生成）
+const currentYear = new Date().getFullYear()
+
+// 证书数据
 const certificate = ref({
   certNo: '',
   status: '',
@@ -95,31 +86,71 @@ const certificate = ref({
   producerNameAndAddr: '',
   manufacturerNameAndAddr: '',
   products: [],
-  techonolgy:'',
+  techonolgy: []
 })
 
-// 模拟数据（完全参照你提供的图片内容）
+// 模拟数据（作为后备）
 const mockData = {
   certNo: '2026010914861569',
   status: '有效',
   clientName: '福州市飞毛腿科技有限公司',
   producerNameAndAddr: '福州市飞毛腿科技有限公司',
   manufacturerNameAndAddr: '福州市飞毛腿科技有限公司',
-  products: ['名称/系列',
-    '规格',
-    '型号'],
+  products: ['名称/系列', '规格', '型号'],
   techonolgy: ['GB 31241-2022', 'GB 4943.1-2022', 'GB 17625.1-2022', 'GB/T9254.1-2021']
 }
 
-// 组件挂载时加载数据
+// 计算状态样式类
+const statusClass = computed(() => {
+  return certificate.value.status === '有效' ? 'valid-status' : 'invalid-status'
+})
+
+// 组件挂载时加载数据并生成二维码
 onMounted(() => {
   const id = route.params.id
   console.log('🔍 当前证书 ID:', id)
 
-  // TODO: 后续对接后端 API 时，这里改为请求接口
-  // 目前使用模拟数据
+  // 1. 尝试从 sessionStorage 获取导入的数据
+  const stored = sessionStorage.getItem('certificateData')
+  if (stored) {
+    try {
+      const map = JSON.parse(stored)
+      if (map[id]) {
+        certificate.value = map[id]
+        // 数据加载后生成二维码
+        generateQRCode()
+        return
+      }
+    } catch (e) {
+      console.warn('解析 sessionStorage 数据失败', e)
+    }
+  }
+
+  // 2. 若没有导入的数据或未找到对应 ID，则使用 mock 数据
   certificate.value = mockData
+  // 生成二维码
+  generateQRCode()
 })
+
+// 生成二维码的函数
+const generateQRCode = () => {
+  nextTick(() => {
+    const canvas = document.getElementById('qrcode-canvas')
+    if (canvas) {
+      // 二维码内容为当前页面的完整 URL（包含 hash）
+      const url = window.location.href
+      QRCode.toCanvas(canvas, url, { width: 150, margin: 1 }, (error) => {
+        if (error) {
+          console.error('二维码生成失败:', error)
+        } else {
+          console.log('✅ 二维码生成成功')
+        }
+      })
+    } else {
+      console.warn('未找到 canvas 元素 #qrcode-canvas')
+    }
+  })
+}
 </script>
 
 <style scoped>
@@ -178,9 +209,14 @@ onMounted(() => {
   word-break: break-all;
   line-height: 1.5;
 }
-/* 状态特殊颜色 */
-.status {
+
+/* ===== 状态颜色 ===== */
+.valid-status {
   color: #67c23a;
+  font-weight: 500;
+}
+.invalid-status {
+  color: #f56c6c;
   font-weight: 500;
 }
 
@@ -204,8 +240,37 @@ onMounted(() => {
   color: #333333;
   border-left: 3px solid #409eff;
 }
-.bottom{
+.product-item-nowrap {
+  white-space: pre-wrap;
+}
+
+/* 底部 */
+.bottom {
   padding: 12px;
   color: #666666;
+}
+.symbol a {
+  color: #409eff;
+  text-decoration: none;
+}
+.symbol a:hover {
+  text-decoration: underline;
+}
+
+/* 二维码区域 */
+.qrcode-section {
+  margin-top: 16px;
+  text-align: center;
+}
+.qrcode-section .label-block {
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+#qrcode-canvas {
+  display: inline-block;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #ffffff;
+  padding: 4px;
 }
 </style>
