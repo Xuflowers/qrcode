@@ -1,7 +1,10 @@
 <template>
   <div class="certificate-container">
-    <!-- 顶部标题栏 -->
+    <!-- 顶部标题栏（含返回按钮） -->
     <div class="header">
+      <div class="header-left">
+        <button v-if="showBack" class="back-btn" @click="goBack">← 返回</button>
+      </div>
       <span class="title">证书信息</span>
     </div>
 
@@ -59,7 +62,7 @@
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
 
-      <!-- 二维码区域 -->
+      <!-- 👇 新增二维码区域 -->
       <div class="qrcode-section">
         <div class="label-block">扫码查看证书</div>
         <canvas id="qrcode-canvas" width="150" height="150"></canvas>
@@ -70,13 +73,22 @@
 
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import QRCode from 'qrcode'
 
 const route = useRoute()
+const router = useRouter()
 
-// 当前年份（动态生成）
+// 当前年份
 const currentYear = new Date().getFullYear()
+
+// 是否显示返回按钮（从后台跳转而来）
+const showBack = computed(() => route.query.from === 'back')
+
+// 返回上一页
+const goBack = () => {
+  router.back()
+}
 
 // 证书数据
 const certificate = ref({
@@ -89,9 +101,8 @@ const certificate = ref({
   techonolgy: []
 })
 
-// 模拟数据（作为后备）
-const mockData = {
-  certNo: '2026010914861569',
+// Mock 数据模板（作为默认值补充）
+const mockDataTemplate = {
   status: '有效',
   clientName: '福州市飞毛腿科技有限公司',
   producerNameAndAddr: '福州市飞毛腿科技有限公司',
@@ -100,50 +111,24 @@ const mockData = {
   techonolgy: ['GB 31241-2022', 'GB 4943.1-2022', 'GB 17625.1-2022', 'GB/T9254.1-2021']
 }
 
-// 计算状态样式类
+// 计算状态样式
 const statusClass = computed(() => {
   return certificate.value.status === '有效' ? 'valid-status' : 'invalid-status'
 })
 
-// 组件挂载时加载数据并生成二维码
-onMounted(() => {
-  const id = route.params.id
-  console.log('🔍 当前证书 ID:', id)
-
-  // 1. 尝试从 sessionStorage 获取导入的数据
-  const stored = sessionStorage.getItem('certificateData')
-  if (stored) {
-    try {
-      const map = JSON.parse(stored)
-      if (map[id]) {
-        certificate.value = map[id]
-        // 数据加载后生成二维码
-        generateQRCode()
-        return
-      }
-    } catch (e) {
-      console.warn('解析 sessionStorage 数据失败', e)
-    }
-  }
-
-  // 2. 若没有导入的数据或未找到对应 ID，则使用 mock 数据
-  certificate.value = mockData
-  // 生成二维码
-  generateQRCode()
-})
-
-// 生成二维码的函数
+// 生成二维码（直接使用路由参数中的证书编号）
 const generateQRCode = () => {
   nextTick(() => {
     const canvas = document.getElementById('qrcode-canvas')
     if (canvas) {
-      // 二维码内容为当前页面的完整 URL（包含 hash）
-      const url = window.location.href
+      const certId = route.params.id
+      const baseUrl = window.location.origin + window.location.pathname
+      const url = `${baseUrl}#/certificate/${certId}`
       QRCode.toCanvas(canvas, url, { width: 150, margin: 1 }, (error) => {
         if (error) {
           console.error('二维码生成失败:', error)
         } else {
-          console.log('✅ 二维码生成成功')
+          console.log('✅ 二维码生成成功，内容：', url)
         }
       })
     } else {
@@ -151,6 +136,46 @@ const generateQRCode = () => {
     }
   })
 }
+
+// 组件挂载
+onMounted(() => {
+  const id = route.params.id
+  console.log('🔍 当前证书 ID:', id)
+
+  // 1. 尝试从 sessionStorage 获取导入的数据
+  const stored = sessionStorage.getItem('certificateData')
+  let found = false
+  if (stored) {
+    try {
+      const map = JSON.parse(stored)
+      console.log('📖 从 sessionStorage 读取的 map:', map)
+      if (map[id]) {
+        // 🔧 合并：mock 作为默认值，导入数据覆盖同名字段，并强制 certNo 为当前 id
+        certificate.value = {
+          ...mockDataTemplate,
+          ...map[id],
+          certNo: id
+        }
+        found = true
+        console.log('✅ 使用导入数据，合并后:', certificate.value)
+      }
+    } catch (e) {
+      console.warn('解析 sessionStorage 数据失败', e)
+    }
+  }
+
+  // 2. 如果未找到，使用 mock 数据，但将 certNo 设置为当前 id，保证显示一致
+  if (!found) {
+    console.warn('未在 sessionStorage 中找到证书，使用 mock 数据（但 certNo 设为当前 ID）')
+    certificate.value = {
+      ...mockDataTemplate,
+      certNo: id
+    }
+  }
+
+  // 生成二维码
+  generateQRCode()
+})
 </script>
 
 <style scoped>
@@ -165,11 +190,31 @@ const generateQRCode = () => {
 
 /* 顶部标题 */
 .header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   background-color: #2c3e50;
   color: white;
   padding: 12px 16px;
   border-radius: 8px 8px 0 0;
-  text-align: center;
+}
+.header-left {
+  position: absolute;
+  left: 16px;
+}
+.back-btn {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.5);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+.back-btn:hover {
+  background: rgba(255,255,255,0.2);
 }
 .title {
   font-size: 18px;
@@ -257,14 +302,15 @@ const generateQRCode = () => {
   text-decoration: underline;
 }
 
-/* 二维码区域 */
+/* 👇 新增二维码样式 */
 .qrcode-section {
-  margin-top: 16px;
+  margin-top: 20px;
   text-align: center;
 }
 .qrcode-section .label-block {
   margin-bottom: 8px;
   font-weight: 500;
+  color: #333;
 }
 #qrcode-canvas {
   display: inline-block;
