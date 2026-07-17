@@ -61,6 +61,12 @@
       <span class="symbol">Copyright © {{ currentYear }}
         <a href="http://www.cqc.com.cn">中国质量认证中心</a>. Allrights reserved.
       </span>
+
+      <!-- 二维码区域 -->
+      <div class="qrcode-section">
+        <div class="label-block">扫码查看证书</div>
+        <canvas id="qrcode-canvas" width="150" height="150"></canvas>
+      </div>
     </div>
   </div>
 </template>
@@ -69,6 +75,7 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QRCode from 'qrcode'
+import { fetchCertificate } from '@/api/certificate'
 
 const route = useRoute()
 const router = useRouter()
@@ -76,7 +83,7 @@ const router = useRouter()
 // 当前年份
 const currentYear = new Date().getFullYear()
 
-// 是否显示返回按钮（从后台跳转而来）
+// 是否显示返回按钮
 const showBack = computed(() => route.query.from === 'back')
 
 // 返回上一页
@@ -95,7 +102,7 @@ const certificate = ref({
   techonolgy: []
 })
 
-// Mock 数据模板（作为默认值补充）
+// Mock 数据模板（后备）
 const mockDataTemplate = {
   status: '有效',
   clientName: '福州市飞毛腿科技有限公司',
@@ -105,12 +112,12 @@ const mockDataTemplate = {
   techonolgy: ['GB 31241-2022', 'GB 4943.1-2022', 'GB 17625.1-2022', 'GB/T9254.1-2021']
 }
 
-// 计算状态样式
+// 状态样式
 const statusClass = computed(() => {
   return certificate.value.status === '有效' ? 'valid-status' : 'invalid-status'
 })
 
-// 生成二维码（直接使用路由参数中的证书编号）
+// 生成二维码（使用当前页面 URL）
 const generateQRCode = () => {
   nextTick(() => {
     const canvas = document.getElementById('qrcode-canvas')
@@ -132,44 +139,31 @@ const generateQRCode = () => {
 }
 
 // 组件挂载
-onMounted(() => {
-  const rawId = route.params.id
-  const id = rawId?.toString().trim()
+onMounted(async () => {
+  const id = route.params.id?.toString().trim()
   console.log('🔍 当前证书 ID:', id)
 
-  // 1. 尝试从 sessionStorage 获取导入的数据
-  const stored = sessionStorage.getItem('certificateData')
-  let found = false
-  if (stored) {
-    try {
-      const map = JSON.parse(stored)
-      console.log('📖 从 sessionStorage 读取的 map:', map)
-      if (map[id]) {
-        // 🔧 合并：mock 作为默认值，导入数据覆盖同名字段，并强制 certNo 为当前 id
-        certificate.value = {
-          ...mockDataTemplate,
-          ...map[id],
-          certNo: id
-        }
-        found = true
-        console.log('✅ 使用导入数据，合并后:', certificate.value)
-      } else {
-        console.warn(`⚠️ map 中不存在 key "${id}"，可用 keys:`, Object.keys(map))
-      }
-    } catch (e) {
-      console.warn('解析 sessionStorage 数据失败', e)
-    }
-  } else {
-    console.warn('sessionStorage 中没有 certificateData')
+  if (!id) {
+    certificate.value = { ...mockDataTemplate, certNo: '无编号' }
+    generateQRCode()
+    return
   }
 
-  // 2. 如果未找到，使用 mock 数据，但将 certNo 设置为当前 id，保证显示一致
-  if (!found) {
-    console.warn('未在 sessionStorage 中找到证书，使用 mock 数据（但 certNo 设为当前 ID）')
-    certificate.value = {
-      ...mockDataTemplate,
-      certNo: id
+  try {
+    // 从后端获取数据
+    const data = await fetchCertificate(id)
+    if (data) {
+      certificate.value = data
+      console.log('✅ 从后端获取到证书数据:', data)
+    } else {
+      // 后端返回 404，使用 mock
+      console.warn('⚠️ 后端未找到该证书，使用 mock 数据')
+      certificate.value = { ...mockDataTemplate, certNo: id }
     }
+  } catch (error) {
+    console.error('❌ 获取证书失败:', error)
+    // 网络错误或其他异常，使用 mock
+    certificate.value = { ...mockDataTemplate, certNo: id }
   }
 
   // 生成二维码
@@ -187,7 +181,6 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-/* 顶部标题 */
 .header {
   display: flex;
   align-items: center;
@@ -221,7 +214,6 @@ onMounted(() => {
   letter-spacing: 2px;
 }
 
-/* 内容卡片 */
 .card {
   background-color: #ffffff;
   border-radius: 0 0 8px 8px;
@@ -229,7 +221,6 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* 每一行信息 */
 .info-row {
   display: flex;
   padding: 10px 0;
@@ -240,7 +231,6 @@ onMounted(() => {
   border-bottom: none;
 }
 
-/* 标签固定宽度，保持对齐 */
 .label {
   color: #666666;
   min-width: 120px;
@@ -254,7 +244,6 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-/* ===== 状态颜色 ===== */
 .valid-status {
   color: #67c23a;
   font-weight: 500;
@@ -264,7 +253,6 @@ onMounted(() => {
   font-weight: 500;
 }
 
-/* 产品型号区块 */
 .product-section {
   margin-top: 12px;
   padding-top: 12px;
@@ -288,7 +276,6 @@ onMounted(() => {
   white-space: pre-wrap;
 }
 
-/* 底部 */
 .bottom {
   padding: 12px;
   color: #666666;
@@ -301,4 +288,20 @@ onMounted(() => {
   text-decoration: underline;
 }
 
+.qrcode-section {
+  margin-top: 20px;
+  text-align: center;
+}
+.qrcode-section .label-block {
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+}
+#qrcode-canvas {
+  display: inline-block;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #ffffff;
+  padding: 4px;
+}
 </style>

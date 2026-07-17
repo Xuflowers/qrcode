@@ -6,3 +6,10 @@ dist-ssr
 .vscode/
 .idea/
 qrcodes/
+backend/node_modules/
+backend/.env
+backend/package-lock.json
+src/node_modules/
+backend/node_modules/
+backend/.env
+backend/package-lock.json
